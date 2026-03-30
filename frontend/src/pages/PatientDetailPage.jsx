@@ -8,6 +8,7 @@ import {
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -21,6 +22,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -35,7 +37,7 @@ const PatientDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Simulator states (from main)
+    // Simulator states
     const [sbpLimit, setSbpLimit] = useState(130);
     const [weightReduction, setWeightReduction] = useState(-5);
     const [smokingCessation, setSmokingCessation] = useState(false);
@@ -47,8 +49,8 @@ const PatientDetailPage = () => {
                 setLoading(true);
                 const data = await getPatientById(id);
                 setPatient(data);
-                if (data.systolic_bp) setSbpLimit(data.systolic_bp);
-                if (data.smoking_status === 1) setSmokingCessation(false); // If currently smoking
+                if (data.patient?.systolic_bp) setSbpLimit(data.patient.systolic_bp);
+                if (data.patient?.smoking_status === 1) setSmokingCessation(false);
                 setError('');
             } catch (err) {
                 console.error("Failed to load patient:", err);
@@ -69,7 +71,7 @@ const PatientDetailPage = () => {
         );
     }
 
-    if (error || !patient) {
+    if (error || !patient || !patient.patient) {
         return (
             <div className="text-center pt-32 pb-64 text-red-500 font-bold">
                 {error || "Patient not found."}
@@ -81,32 +83,42 @@ const PatientDetailPage = () => {
         );
     }
 
+    const p = patient.patient;
+
     // Mapping real data
     const currentPatient = {
-        name: patient.name || 'Unknown Patient',
-        id: patient.patient_id,
-        gender: patient.gender || 'Unknown',
-        age: patient.age || '--',
-        ward: patient.ward || 'General Ward',
-        asha: patient.asha_worker_id ? `Assigned (${patient.asha_worker_id.split('-')[0]})` : 'Unassigned',
-        riskTier: patient.risk_tier || 'UNKNOWN',
-        overallRisk: patient.overall_risk || 0,
-        metrics: {
-            diabetes: patient.diabetes_risk || 0,
-            hypertension: patient.hypertension_risk || 0,
-            cvd: patient.cvd_risk || 0
+        name: p.name || 'Unknown Patient',
+        id: p.patient_id,
+        gender: p.gender || 'Unknown',
+        age: p.age || '--',
+        ward: p.ward || 'General Ward',
+        asha: p.asha_worker_id ? `Assigned (${p.asha_worker_id.split('-')[0]})` : 'Unassigned',
+        clinical_vitals: {
+            sbp: p.systolic_bp,
+            dbp: p.diastolic_bp,
+            bmi: p.bmi,
+            glucose: p.blood_glucose_fasting,
+            hba1c: p.hba1c,
+            cholesterol: p.cholesterol_total
         },
-        trajectory: patient.trajectory_label || 'Stable',
-        xaiContributors: patient.shap_factors || [],
-        xaiSummary: patient.xai_summary || "No automated explanation available for this profile.",
-        history: patient.patient_risk_history || []
+        riskTier: p.risk_tier || 'Low',
+        overallRisk: p.overall_risk || 0,
+        metrics: {
+            diabetes: p.diabetes_risk || 0,
+            hypertension: p.hypertension_risk || 0,
+            cvd: p.cvd_risk || 0
+        },
+        trajectoryLabel: patient.trajectory_label || 'Stable',
+        history: patient.trajectory_history || [],
+        xaiSummary: p.xai_summary || "Risk profile based on clinical parameters.",
+        shapFactors: p.shap_factors || []
     };
 
     const xaiData = {
-        labels: currentPatient.xaiContributors.map(c => c.feature),
+        labels: currentPatient.shapFactors.map(f => f.display_label || f.feature),
         datasets: [{
-            data: currentPatient.xaiContributors.map(c => c.value),
-            backgroundColor: currentPatient.xaiContributors.map(c => c.value > 0 ? '#ef4444' : '#10b981'),
+            data: currentPatient.shapFactors.map(f => f.impact),
+            backgroundColor: currentPatient.shapFactors.map(f => f.impact > 0 ? '#ef4444' : '#10b981'),
             borderRadius: 6,
         }]
     };
@@ -117,30 +129,31 @@ const PatientDetailPage = () => {
         plugins: { legend: { display: false } },
         scales: {
             x: { grid: { display: false }, border: { display: false } },
-            y: { grid: { display: false }, border: { display: false } }
+            y: { grid: { display: false }, border: { display: false }, ticks: { font: { weight: 'bold' } } }
         }
     };
 
     const trajectoryData = {
         labels: currentPatient.history.length > 0 
-           ? currentPatient.history.map(h => new Date(h.assessment_date).toLocaleDateString('en-US', { month: 'short', year: '2d' }))
+           ? currentPatient.history.map(h => new Date(h.assessment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
            : ['PREVIOUS', 'NOW'],
         datasets: [
           {
             label: 'Risk History',
-            data: currentPatient.history.length > 0 ? currentPatient.history.map(h => h.overall_risk) : [patient.overall_risk - 5, patient.overall_risk],
+            data: currentPatient.history.length > 0 ? currentPatient.history.map(h => h.overall_risk) : [currentPatient.overallRisk - 5, currentPatient.overallRisk],
             borderColor: '#0f172a',
             backgroundColor: '#0f172a',
             borderWidth: 2,
             pointStyle: 'circle',
             pointRadius: 6,
-            tension: 0.4
+            tension: 0.4,
+            fill: false
           }
         ]
     };
 
-    // Simple simulation logic
-    const simulatedRisk = Math.max(0, currentPatient.overallRisk - (smokingCessation ? 10 : 0) - (Math.abs(weightReduction) * 1.2) - (Math.max(0, patient.systolic_bp - sbpLimit) * 0.5));
+    // Simulation logic
+    const simulatedRisk = Math.max(0, currentPatient.overallRisk - (smokingCessation ? 10 : 0) - (Math.abs(weightReduction) * 1.2) - (Math.max(0, p.systolic_bp - sbpLimit) * 0.5));
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700 font-['Outfit'] pb-20 pr-4">
@@ -188,8 +201,8 @@ const PatientDetailPage = () => {
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Blood Pressure</p>
                                 <div className="flex items-center gap-3">
-                                    <span className={`text-2xl font-black tracking-tight ${patient.systolic_bp > 140 ? 'text-red-600' : 'text-slate-800'}`}>
-                                        {patient.systolic_bp}/{patient.diastolic_bp}
+                                    <span className={`text-2xl font-black tracking-tight ${p.systolic_bp > 140 ? 'text-red-600' : 'text-slate-800'}`}>
+                                        {p.systolic_bp}/{p.diastolic_bp}
                                     </span>
                                     <span className="text-xs font-bold text-slate-400">mmHg</span>
                                 </div>
@@ -197,8 +210,8 @@ const PatientDetailPage = () => {
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">BMI</p>
                                 <div className="flex items-center gap-3">
-                                    <span className={`text-2xl font-black tracking-tight ${patient.bmi > 25 ? 'text-amber-500' : 'text-slate-800'}`}>
-                                        {patient.bmi}
+                                    <span className={`text-2xl font-black tracking-tight ${p.bmi > 25 ? 'text-amber-500' : 'text-slate-800'}`}>
+                                        {p.bmi}
                                     </span>
                                     <span className="text-xs font-bold text-slate-400">kg/m²</span>
                                 </div>
@@ -206,9 +219,9 @@ const PatientDetailPage = () => {
                             <div className="pt-4 space-y-4">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Habits</p>
                                 <div className="flex flex-wrap gap-2">
-                                    {patient.smoking_status === 1 && <span className="px-3 py-1 bg-slate-900 text-white text-[8px] font-black rounded-lg uppercase tracking-widest">Smoker</span>}
+                                    {p.smoking_status === 1 && <span className="px-3 py-1 bg-slate-900 text-white text-[8px] font-black rounded-lg uppercase tracking-widest">Smoker</span>}
                                     <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[8px] font-black rounded-lg uppercase tracking-widest">
-                                        LD: {new Date(patient.last_visit_date).toLocaleDateString()}
+                                        LD: {p.last_visit_date ? new Date(p.last_visit_date).toLocaleDateString() : '—'}
                                     </span>
                                 </div>
                             </div>
@@ -224,7 +237,7 @@ const PatientDetailPage = () => {
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-sm font-bold text-slate-800">Housing</p>
-                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{patient.housing_status || 'Stable'}</p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{p.housing_status || 'Stable'}</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-4">
@@ -233,7 +246,7 @@ const PatientDetailPage = () => {
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-sm font-bold text-slate-800">Income</p>
-                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{patient.income_level || 'Medium'}</p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{p.income_level || 'Medium'}</p>
                                 </div>
                             </div>
                         </div>
@@ -245,9 +258,9 @@ const PatientDetailPage = () => {
                     <div className="w-full flex justify-between items-center px-4">
                         <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Health Risk Profile</h3>
                         <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                            currentPatient.trajectory.includes('Worsening') ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'
+                            currentPatient.trajectoryLabel.includes('Worsening') ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'
                         }`}>
-                            {currentPatient.trajectory}
+                            {currentPatient.trajectoryLabel}
                         </div>
                     </div>
 
@@ -273,10 +286,11 @@ const PatientDetailPage = () => {
                     </div>
 
                     <div className="w-full space-y-6 pt-6 border-t border-slate-50">
-                        <div className="flex justify-between items-center">
-                            <h4 className="text-sm font-black text-slate-800 tracking-tight">Explainable AI (SHAP) Contributors</h4>
+                        <div className="flex justify-between items-center px-2">
+                            <h4 className="text-sm font-black text-slate-800 tracking-tight">Top Contributing Factors (XAI)</h4>
+                            <button className="text-[8px] font-black text-blue-600 uppercase tracking-widest hover:underline">SHAP Baseline</button>
                         </div>
-                        {currentPatient.xaiContributors.length > 0 ? (
+                        {currentPatient.shapFactors.length > 0 ? (
                             <div className="h-56">
                                 <Bar data={xaiData} options={xaiOptions} />
                             </div>
@@ -302,7 +316,7 @@ const PatientDetailPage = () => {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-500">
                                 <span>Target Systolic BP</span>
-                                <span className="text-blue-600 font-extrabold">{sbpLimit}</span>
+                                <span className="text-blue-600 font-extrabold">{sbpLimit} mmHg</span>
                             </div>
                             <input type="range" min="110" max="180" step="5" value={sbpLimit} onChange={(e) => setSbpLimit(e.target.value)} className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
                         </div>
@@ -352,7 +366,7 @@ const PatientDetailPage = () => {
                             maintainAspectRatio: false, 
                             plugins: { legend: { display: false } }, 
                             scales: { 
-                                y: { display: false, min: 0, max: 100 }, 
+                                y: { min: 0, max: 100, border: { display: false }, ticks: { font: { weight: 'bold' } } }, 
                                 x: { grid: { display: false }, ticks: { font: { weight: 'bold', size: 10 }, color: '#94a3b8' } } 
                             } 
                         }} 

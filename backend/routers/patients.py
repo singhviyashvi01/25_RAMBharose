@@ -1,19 +1,6 @@
-"""
-ROUTER: patients.py
-===================
-Endpoints:
-  GET  /api/patients            — paginated, filtered patient list
-  GET  /api/patients/:id        — full patient detail + SHAP + trajectory
-  POST /api/patients/:id/assign-asha — assign ASHA worker
-
-Key features:
-- Patient list sorted by overall_risk descending
-- Patient detail includes pre-computed SHAP factors from DB
-- Temporal risk trajectory from patient_risk_history table
-- Trajectory label computed from slope of historical assessments
-"""
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List
+import pandas as pd
 
 from database import get_supabase
 from schemas.patient import (
@@ -29,7 +16,6 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 
 PAGE_SIZE = 50
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _compute_trajectory_label(history: list) -> str:
@@ -38,7 +24,7 @@ def _compute_trajectory_label(history: list) -> str:
     Uses the slope of overall_risk across the last assessments.
     """
     if len(history) < 2:
-        return "Insufficient data"
+        return "Stable"
 
     # Sort by date ascending
     sorted_h = sorted(history, key=lambda h: h["assessment_date"])
@@ -123,13 +109,11 @@ async def list_patients(
     page: int = Query(1, ge=1),
     tier: Optional[str] = None,
     ward: Optional[str] = None,
-    condition: Optional[str] = None,
     has_asha: Optional[bool] = None,
     search: Optional[str] = None,
 ):
     """
     Returns a paginated list of patients sorted by risk score (desc).
-    Supports filtering by tier, ward, condition, ASHA assignment, and name/ID search.
     """
     supabase = get_supabase()
     query = supabase.table("patients").select(
@@ -142,22 +126,22 @@ async def list_patients(
         query = query.eq("risk_tier", tier)
     if ward:
         query = query.eq("ward", ward)
-    if has_asha is True:
-        query = query.neq("asha_worker_id", None)
-    elif has_asha is False:
-        query = query.is_("asha_worker_id", "null")
+    
+    if has_asha is not None:
+        if has_asha:
+            query = query.not_.is_("asha_worker_id", "null")
+        else:
+            query = query.is_("asha_worker_id", "null")
+            
     if search:
-        query = query.or_(
-            f"name.ilike.%{search}%,patient_id.ilike.%{search}%"
-        )
+        query = query.or_(f"name.ilike.%{search}%,patient_id.ilike.%{search}%")
 
     # Pagination
-    offset = (page - 1) * PAGE_SIZE
-    query = query.order("overall_risk", desc=True)
-    query = query.range(offset, offset + PAGE_SIZE - 1)
-
-    result = query.execute()
-    rows = result.data or []
+    limit = 50
+    offset = (page - 1) * limit
+    
+    res = query.order("overall_risk", desc=True).range(offset, offset + limit - 1).execute()
+    rows = res.data or []
 
     patients = []
     for row in rows:
@@ -196,7 +180,8 @@ async def get_patient(patient_id: str):
     if not result.data:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
 
-    patient = _row_to_patient_with_risk(result.data[0])
+    patient_obj = result.data[0]
+    patient = _row_to_patient_with_risk(patient_obj)
 
     # Fetch risk trajectory history
     history_result = supabase.table("patient_risk_history") \
@@ -225,51 +210,51 @@ async def get_patient(patient_id: str):
     return PatientDetailResponse(
         patient=patient,
         trajectory_label=trajectory_label,
-        trajectory_history=trajectory_history,
+        trajectory_history=trajectory_history
     )
 
 
 @router.post("/{patient_id}/assign-asha")
 async def assign_asha_to_patient(patient_id: str, body: dict):
     """
-    Manually assigns an ASHA worker to a patient.
-    Creates or updates the corresponding ASHA task record.
-    Body: { asha_worker_id: str }
+    Manually assigns an ASHA worker to a patient and creates a task.
     """
-    asha_worker_id = body.get("asha_worker_id")
-    if not asha_worker_id:
+    worker_id = body.get("asha_worker_id")
+    if not worker_id:
         raise HTTPException(status_code=400, detail="asha_worker_id is required")
 
     supabase = get_supabase()
 
     # Update patient record
     result = supabase.table("patients") \
-        .update({"asha_worker_id": asha_worker_id}) \
+        .update({"asha_worker_id": worker_id}) \
         .eq("patient_id", patient_id) \
         .execute()
 
     if not result.data:
         raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
 
-    # Create ASHA task
-    patient_data = supabase.table("patients") \
-        .select("risk_tier") \
-        .eq("patient_id", patient_id) \
-        .limit(1) \
-        .execute()
-
+    # Get patient risk for priority
     priority = "Medium"
-    if patient_data.data:
-        priority = patient_data.data[0].get("risk_tier", "Medium")
+    if result.data:
+        priority = result.data[0].get("risk_tier", "Medium")
 
-    task_record = {
+    # Create ASHA task
+    task_data = {
         "patient_id": patient_id,
-        "asha_worker_id": asha_worker_id,
+        "asha_worker_id": worker_id,
         "task_type": "Home Visit",
         "status": "Pending",
         "priority": priority,
-        "notes": f"Auto-assigned to ASHA {asha_worker_id}",
+        "due_date": (pd.Timestamp.now() + pd.Timedelta(days=2)).strftime('%Y-%m-%d'),
+        "notes": f"Manually assigned to ASHA {worker_id}",
     }
-    supabase.table("asha_tasks").insert(task_record).execute()
+    supabase.table("asha_tasks").insert(task_data).execute()
 
-    return {"message": f"ASHA worker {asha_worker_id} assigned to patient {patient_id}"}
+    # Increment worker task count via RPC
+    try:
+        supabase.rpc("increment_asha_task_count", {"worker_id": worker_id}).execute()
+    except Exception as e:
+        print(f"Warning: Failed to increment ASHA task count: {e}")
+
+    return {"status": "success", "message": f"Assigned worker {worker_id} to patient {patient_id}"}
