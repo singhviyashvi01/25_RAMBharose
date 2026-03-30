@@ -16,7 +16,17 @@ const ASHATasksPage = () => {
         { id: 1, patient: 'Anita Deshpande', risk: 'HIGH RISK', distance: '2.1 km away', due: 'Today, 4:00 PM', status: 'Pending', icon: 'bg-red-50 text-red-500', symbol: '*' },
         { id: 2, patient: 'Rajesh Kumar', risk: 'MEDIUM RISK', distance: '0.8 km away', due: 'Tomorrow', status: 'In Progress', icon: 'bg-orange-50 text-orange-500', symbol: 'm' },
         { id: 3, patient: 'Priya Sharma', risk: 'LOW RISK', distance: '3.5 km away', due: '24 Oct', status: 'Assigned', icon: 'bg-cyan-50 text-cyan-500', symbol: 'u' },
+        { id: 4, patient: 'Gita Patil', risk: 'HIGH RISK', distance: '1.2 km away', due: 'Today, 6:00 PM', status: 'Done', icon: 'bg-emerald-50 text-emerald-500', symbol: '✓' },
+        { id: 5, patient: 'Suresh Patil', risk: 'LOW RISK', distance: '0.5 km away', due: 'Today, 5:30 PM', status: 'Pending', icon: 'bg-red-50 text-red-500', symbol: '*' },
+        { id: 6, patient: 'Meena Rao', risk: 'MEDIUM RISK', distance: '4.2 km away', due: '25 Oct', status: 'In Progress', icon: 'bg-orange-50 text-orange-500', symbol: 'm' },
+        { id: 7, patient: 'Amit Singh', risk: 'LOW RISK', distance: '2.8 km away', due: '26 Oct', status: 'Done', icon: 'bg-emerald-50 text-emerald-500', symbol: '✓' },
     ];
+
+    const filteredTasks = tasks.filter(task => {
+        if (activeTab === 'All') return true;
+        if (activeTab === 'In Progress') return task.status === 'In Progress';
+        return task.status === activeTab;
+    });
 
     const roster = [
         { name: 'Lakshmi Bai', zone: 'ZONE A', tasks: 4, online: true },
@@ -71,7 +81,7 @@ const ASHATasksPage = () => {
                     <div className="flex justify-between items-center">
                         <h2 className="text-2xl font-black text-gray-800 tracking-tight">Active Tasks</h2>
                         <div className="flex bg-gray-50 p-1 rounded-2xl border border-gray-100">
-                            {['All', 'Pending', 'InProgress', 'Done'].map(tab => (
+                            {['All', 'Pending', 'In Progress', 'Done'].map(tab => (
                                 <button 
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -86,7 +96,7 @@ const ASHATasksPage = () => {
                     </div>
 
                     <div className="space-y-4">
-                        {tasks.map(task => (
+                        {filteredTasks.map(task => (
                             <div key={task.id} className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex items-center justify-between group hover:border-blue-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                                 <div className="flex items-center gap-8">
                                     <div className={`w-14 h-14 ${task.icon} rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner`}>
