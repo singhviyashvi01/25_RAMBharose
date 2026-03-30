@@ -1,6 +1,6 @@
-# RAMBharose Healthcare Dashboard 🏥
+# EarlyEdge 🏥
 
-RAMBharose is a specialized AI-powered risk prediction and clinical intervention dashboard for NCD (Non-Communicable Diseases) management in rural settings.
+EarlyEdge is a specialized AI-powered risk prediction and clinical intervention dashboard for NCD (Non-Communicable Diseases) management in rural settings.
 
 ## 🚀 Quick Start Guide for Teammates
 
@@ -61,6 +61,14 @@ python run_api.py
 - **/ml/saved_models**: Serialized risk prediction models.
 - **sample_patients_50.csv**: Use this file in the "Upload" tab to test the system with clinical data.
 
----
-**Need Help?**
-If you encounter any module missing errors, ensure your virtual environment is active and run `pip install -r backend/requirements.txt` again.
+## 🛠️ Troubleshooting
+
+### "Nothing happens when I upload a CSV"
+If you select a file but the ingestion never finishes or shows an error:
+1. **Check `.env`**: Ensure you have a `.env` file in the root with valid `SUPABASE_URL` and `SUPABASE_KEY`.
+2. **Missing Dependencies**: Run `pip install -r backend/requirements.txt` to ensure all ML and API modules are installed.
+3. **Check Terminal**: Look at the terminal running `python run_api.py`. If you see a `ValidationError` or `Supabase error`, it means your environment keys are incorrect.
+
+### Dashboard is Blank
+- Ensure the Backend API is running at `http://localhost:8000`.
+- Refresh the page once the backend indicates "Database migration COMPLETED".

@@ -7,6 +7,7 @@ const UploadPage = () => {
     const [currentFile, setCurrentFile] = useState(null);
     const [history, setHistory] = useState([]);
     const [totalProcessed, setTotalProcessed] = useState(0);
+    const [uploadError, setUploadError] = useState(null);
 
     const [mapping, setMapping] = useState({
         patient_id: 'Auto-Detected',
@@ -56,15 +57,14 @@ const UploadPage = () => {
             const response = await uploadDataset(file, (percent) => {
                 setProgress(percent);
             });
+            setUploading(false);
+            setCurrentFile(null);
+            setProgress(0);
+            setUploadError(null);
             loadHistory();
-            // Success feedback
-            setTimeout(() => {
-                setUploading(false);
-                setCurrentFile(null);
-                setProgress(0);
-            }, 2000);
         } catch (error) {
             console.error('Upload failed:', error);
+            setUploadError(error.response?.data?.detail || "Upload failed. Please ensure the backend server and Supabase keys are configured.");
             setUploading(false);
             setProgress(0);
         }
@@ -156,6 +156,20 @@ const UploadPage = () => {
                                      <div className="h-full bg-blue-600 rounded-full transition-all duration-700 shadow-lg shadow-blue-200" style={{ width: `${progress}%` }}></div>
                                  </div>
                              </div>
+                        </div>
+                    )}
+
+                    {/* Error Indicator */}
+                    {uploadError && (
+                        <div className="bg-red-50 border border-red-100 rounded-[40px] p-8 shadow-sm flex items-center gap-8 animate-in slide-in-from-top-4 duration-400">
+                             <div className="w-14 h-14 bg-white text-red-600 rounded-2xl flex items-center justify-center shadow-sm">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                             </div>
+                             <div className="flex-1 space-y-1">
+                                 <h4 className="text-sm font-black text-red-800 uppercase tracking-widest">Ingestion Core Failure</h4>
+                                 <p className="text-xs font-bold text-red-600/80 leading-relaxed">{uploadError}</p>
+                             </div>
+                             <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-700 p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
                     )}
                 </div>

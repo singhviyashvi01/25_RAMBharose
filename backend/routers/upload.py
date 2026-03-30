@@ -85,7 +85,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 
         # We'll collect all records for bulk upsert where possible, 
         # but history needs individual treatment or bulk insert.
-        patient_records = []
+        patient_records = {}
         history_records = []
 
         for idx, risk in enumerate(risk_results):
@@ -175,12 +175,12 @@ async def upload_dataset(file: UploadFile = File(...)):
                     awid = df.iloc[idx].get("asha_worker_id", None)
                     patient_record["asha_worker_id"] = str(awid) if pd.notna(awid) and str(awid).strip() else None
 
-                patient_records.append(patient_record)
+                patient_records[pid] = patient_record
 
                 # History Record
                 history_records.append({
                     "patient_id": pid,
-                    "assessment_date": today_str,
+                    "assessment_date": patient_record.get("last_visit_date") or today_str,
                     "diabetes_risk": round(d_risk, 2),
                     "hypertension_risk": round(h_risk, 2),
                     "cvd_risk": round(c_risk, 2),
@@ -210,7 +210,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 
         # 7. Bulk Upsert Patients
         if patient_records:
-            supabase.table("patients").upsert(patient_records, on_conflict="patient_id").execute()
+            supabase.table("patients").upsert(list(patient_records.values()), on_conflict="patient_id").execute()
         
         # 8. Bulk Insert History
         if history_records:

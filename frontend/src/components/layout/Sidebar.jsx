@@ -41,9 +41,9 @@ const Sidebar = () => {
     <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full shadow-sm">
       {/* Logo Section */}
       <div className="px-8 py-10">
-        <h1 className="text-2xl font-serif italic font-black text-blue-700 tracking-tight leading-tight">
-          The Clinical Atelier
-        </h1>
+        <h2 className="text-4xl font-extrabold text-blue-600 leading-tight italic tracking-tighter">
+          EarlyEdge
+        </h2>
         <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em] mt-1">
           Medical Officer
         </p>

@@ -78,13 +78,13 @@ const SignUpPage = () => {
            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
           </svg>
-          <span className="font-serif italic font-black text-slate-800 uppercase text-lg">The Clinical Atelier</span>
+          <span className="font-serif italic font-black text-slate-800 uppercase text-lg">EarlyEdge</span>
         </div>
 
         <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in duration-700 py-12">
-          <div className="space-y-3">
-            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Create Account</h1>
-            <p className="text-slate-500 font-medium">Register your hospital to get started with our medical suite.</p>
+          <div className="mb-12">
+            <h1 className="text-4xl font-extrabold text-blue-600 italic tracking-tighter leading-none mb-2">EarlyEdge</h1>
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Precision NCD Risk Intelligence</p>
           </div>
 
           <form onSubmit={handleSignUp} className="space-y-4">
