@@ -8,6 +8,35 @@ from backend.database import get_supabase
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 
 
+async def sync_asha_worker_task_counts(db):
+    """
+    Synchronizes 'active_tasks' count for all ASHA workers by counting 
+    actual tasks in the 'asha_tasks' table that are not 'Done'.
+    Fixes discrepancies caused by patient/task deletions.
+    """
+    try:
+        # 1. Fetch all active workers
+        workers_res = db.table("asha_workers").select("worker_id").execute()
+        if not workers_res.data:
+            return
+
+        for worker in workers_res.data:
+            worker_id = worker["worker_id"]
+            # 2. Count actual pending/inprogress tasks
+            tasks_res = db.table("asha_tasks").select("task_id", count="exact")\
+                .eq("asha_worker_id", worker_id).neq("status", "Done").execute()
+            
+            count = tasks_res.count or 0
+            
+            # 3. Update the worker's count in the database
+            db.table("asha_workers").update({"active_tasks": count})\
+                .eq("worker_id", worker_id).execute()
+        
+        print("ASHA task counts synchronized across all workers.")
+    except Exception as e:
+        print(f"Sync error: {e}")
+
+
 async def auto_assign_asha_tasks() -> Dict:
     """
     Main auto-assignment logic:
@@ -18,6 +47,9 @@ async def auto_assign_asha_tasks() -> Dict:
     db = get_supabase()
     
     try:
+        # 0. Sync counts to ensure we are not using stale 'active_tasks'
+        await sync_asha_worker_task_counts(db)
+        
         # 1. Fetch unassigned high-risk patients
         patients_res = db.table("patients").select("patient_id, name, ward, risk_tier, overall_risk")\
             .eq("risk_tier", "High").is_("asha_worker_id", "null").execute()

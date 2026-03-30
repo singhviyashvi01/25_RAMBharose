@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { uploadDataset, getUploadHistory } from '../services/uploadService';
+import { uploadDataset, getUploadHistory, deleteBatch } from '../services/uploadService';
 
 const UploadPage = () => {
     const [progress, setProgress] = useState(0);
@@ -67,6 +67,20 @@ const UploadPage = () => {
             console.error('Upload failed:', error);
             setUploading(false);
             setProgress(0);
+        }
+    };
+
+    const handleDeleteBatch = async (batchId, filename) => {
+        if (!window.confirm(`Are you sure you want to remove the ingestion for "${filename}"? All associated patient records and risk scores will be deleted.`)) {
+            return;
+        }
+
+        try {
+            await deleteBatch(batchId);
+            loadHistory();
+        } catch (error) {
+            console.error('Failed to delete batch:', error);
+            alert('Failed to delete ingestion. Please check the logs.');
         }
     };
 
@@ -226,9 +240,18 @@ const UploadPage = () => {
                                         </span>
                                     </td>
                                     <td className="py-9 text-right pr-6">
-                                        <button className="p-3 text-slate-300 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl hover:shadow-md">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                        </button>
+                                        <div className="flex items-center justify-end gap-3">
+                                            <button className="p-3 text-slate-300 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl hover:shadow-md" title="Download Source">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteBatch(batch.batch_id, batch.filename)}
+                                                className="p-3 text-slate-200 hover:text-rose-600 transition-colors bg-slate-50/50 rounded-xl hover:bg-rose-50 hover:shadow-sm"
+                                                title="Remove Ingestion"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

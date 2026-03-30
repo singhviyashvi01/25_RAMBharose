@@ -7,6 +7,7 @@ const ScreeningCampsPage = () => {
     const [loading, setLoading] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [selectedConditions, setSelectedConditions] = useState(['Hypertension', 'Diabetes']);
+    const [schedulingWard, setSchedulingWard] = useState(null);
 
     const loadData = async () => {
         try {
@@ -30,6 +31,8 @@ const ScreeningCampsPage = () => {
 
     const handleScheduleCamp = async (wardPlan) => {
         try {
+            setSchedulingWard(wardPlan.ward);
+            console.log(`Scheduling screening camp for ${wardPlan.ward}...`);
             const startDate = new Date();
             startDate.setDate(startDate.getDate() + 7); // Schedule for 1 week out
             const endDate = new Date(startDate);
@@ -43,11 +46,14 @@ const ScreeningCampsPage = () => {
                 target_patient_count: wardPlan.estimated_patients_per_camp,
                 screenings: wardPlan.suggested_screenings
             });
+            console.log(`Successfully scheduled camp for ${wardPlan.ward}`);
             alert(`Camp scheduled successfully for ${wardPlan.ward}`);
-            loadData();
+            await loadData();
         } catch (err) {
             console.error("Scheduling failed:", err);
             alert("Failed to schedule camp. Check backend connection.");
+        } finally {
+            setSchedulingWard(null);
         }
     };
 
@@ -57,6 +63,10 @@ const ScreeningCampsPage = () => {
                 ? prev.filter(c => c !== condition) 
                 : [...prev, condition]
         );
+    };
+
+    const isScheduled = (wardName) => {
+        return camps.upcoming.some(camp => camp.ward === wardName);
     };
 
     if (loading || !plan) {
@@ -159,7 +169,7 @@ const ScreeningCampsPage = () => {
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Active Timeline</h3>
                             <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{camps.total_upcoming} PLANNED</span>
                         </div>
-                        <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
+                        <div className="max-h-[450px] overflow-y-auto pr-2 custom-scrollbar space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
                             {camps.upcoming.length === 0 ? (
                                 <p className="text-xs text-slate-400 italic pl-8">No scheduled camps.</p>
                             ) : camps.upcoming.map((camp, idx) => (
@@ -221,12 +231,28 @@ const ScreeningCampsPage = () => {
                                         </td>
                                         <td className="py-6 text-center font-black text-blue-600 text-sm">{ward.number_needed_to_screen}</td>
                                         <td className="py-6 text-right pr-4">
-                                            <button 
-                                                onClick={() => handleScheduleCamp(ward)}
-                                                className="p-3 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-blue-200"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-                                            </button>
+                                            {isScheduled(ward.ward) ? (
+                                                <div className="flex items-center justify-end gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100 w-fit ml-auto animate-in zoom-in duration-300">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Scheduled</span>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleScheduleCamp(ward)}
+                                                    disabled={schedulingWard === ward.ward}
+                                                    className={`p-3 rounded-xl transition-all shadow-sm ${
+                                                        schedulingWard === ward.ward
+                                                            ? 'bg-blue-50 text-blue-300 cursor-not-allowed'
+                                                            : 'bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-blue-200'
+                                                    }`}
+                                                >
+                                                    {schedulingWard === ward.ward ? (
+                                                        <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                                                    ) : (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                                                    )}
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

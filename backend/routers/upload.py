@@ -248,3 +248,34 @@ async def get_upload_history():
         .limit(50) \
         .execute()
     return {"history": result.data}
+
+
+@router.delete("/batch/{batch_id}")
+async def delete_upload_batch(batch_id: str):
+    """
+    Deletes an upload batch and all patients associated with it.
+    """
+    supabase = get_supabase()
+    
+    try:
+        # 1. Delete patients belonging to this batch
+        # We delete patients first because they reference the batch (though no hard FK constraint prevents this order, it's cleaner)
+        supabase.table("patients") \
+            .delete() \
+            .eq("upload_batch_id", batch_id) \
+            .execute()
+            
+        # 2. Delete the batch record itself
+        result = supabase.table("upload_batches") \
+            .delete() \
+            .eq("batch_id", batch_id) \
+            .execute()
+            
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Batch not found")
+            
+        return {"status": "success", "message": f"Batch {batch_id} and associated records deleted."}
+        
+    except Exception as e:
+        print(f"Deletion failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

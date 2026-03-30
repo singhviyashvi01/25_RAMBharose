@@ -31,3 +31,13 @@ export const getUploadHistory = async () => {
   const { data } = await api.get('/upload/history')
   return data
 }
+
+/**
+ * Delete an upload batch and all its clinical data.
+ * @param {string} batchId - Unique batch identifier
+ * @returns {Promise<Object>}
+ */
+export const deleteBatch = async (batchId) => {
+  const { data } = await api.delete(`/upload/batch/${batchId}`)
+  return data
+}
