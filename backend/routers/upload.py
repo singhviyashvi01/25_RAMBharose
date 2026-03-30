@@ -20,7 +20,7 @@ Full data-ingestion pipeline:
 import io
 import uuid
 import traceback
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 import pandas as pd
 from fastapi import APIRouter, UploadFile, File, HTTPException
@@ -29,7 +29,7 @@ from database import get_supabase
 from ml.preprocessor import preprocess, validate_dataframe
 from ml.predictor import predict_risk_scores
 from ml.explainer import get_shap_factors, build_xai_summary, get_top_factor_label
-from utils.risk_calculator import get_primary_condition
+from utils.risk_calculator import get_primary_condition, score_to_tier
 from schemas.upload import UploadResponse
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
@@ -73,7 +73,14 @@ async def upload_dataset(file: UploadFile = File(...)):
     Returns batch summary with risk tier counts.
     """
     # 1. Read file
-    df = _read_file_to_df(file)
+    content = await file.read()
+    filename = file.filename or ""
+    
+    if filename.endswith(".xlsx") or filename.endswith(".xls"):
+        df = pd.read_excel(io.BytesIO(content))
+    else:
+        df = pd.read_csv(io.BytesIO(content))
+        
     df = _normalize_columns(df)
     total_records = len(df)
 
@@ -122,7 +129,7 @@ async def upload_dataset(file: UploadFile = File(...)):
             else:
                 low += 1
 
-            # SHAP explanation (use diabetes as primary; or the highest-risk condition)
+            # SHAP explanation
             primary_cond_key = "diabetes"
             max_score = d_risk
             for ckey, cscore in [("hypertension", h_risk), ("cvd", c_risk)]:
@@ -204,7 +211,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         except Exception as e:
             traceback.print_exc()
             failed += 1
-            failed_rows.append(idx + 2)  # +2 for 1-indexed + header row
+            failed_rows.append(idx + 2)
 
     # 7. Log the upload batch
     batch_record = {
@@ -216,6 +223,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         "high_risk_count": high,
         "medium_risk_count": medium,
         "low_risk_count": low,
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
     }
     try:
         supabase.table("upload_batches").insert(batch_record).execute()
@@ -242,7 +250,6 @@ async def upload_dataset(file: UploadFile = File(...)):
 async def get_upload_history():
     """
     Returns all past upload batches for the authenticated hospital.
-    Includes: batch_id, date, record count, high/medium/low counts.
     """
     supabase = get_supabase()
     result = supabase.table("upload_batches") \
@@ -250,4 +257,5 @@ async def get_upload_history():
         .order("uploaded_at", desc=True) \
         .limit(50) \
         .execute()
-    return {"batches": result.data}
+    return result.data
+

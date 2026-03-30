@@ -1,34 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from 'chart.js';
 import { getPatientById } from '../services/patientService';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
 const PatientDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     
-    // Default mock until fetch completes or if no ID
     const [patient, setPatient] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+
+    // Simulator states (from main)
+    const [sbpLimit, setSbpLimit] = useState(130);
+    const [weightReduction, setWeightReduction] = useState(-5);
+    const [smokingCessation, setSmokingCessation] = useState(false);
 
     useEffect(() => {
         const loadPatient = async () => {
@@ -37,6 +47,8 @@ const PatientDetailPage = () => {
                 setLoading(true);
                 const data = await getPatientById(id);
                 setPatient(data);
+                if (data.systolic_bp) setSbpLimit(data.systolic_bp);
+                if (data.smoking_status === 1) setSmokingCessation(false); // If currently smoking
                 setError('');
             } catch (err) {
                 console.error("Failed to load patient:", err);
@@ -69,7 +81,7 @@ const PatientDetailPage = () => {
         );
     }
 
-    // Default to handling missing data gracefully
+    // Mapping real data
     const currentPatient = {
         name: patient.name || 'Unknown Patient',
         id: patient.patient_id,
@@ -77,25 +89,24 @@ const PatientDetailPage = () => {
         age: patient.age || '--',
         ward: patient.ward || 'General Ward',
         asha: patient.asha_worker_id ? `Assigned (${patient.asha_worker_id.split('-')[0]})` : 'Unassigned',
-        risk: patient.risk_score?.risk_tier || 'UNKNOWN',
-        overallRisk: patient.risk_score?.overall_risk || 0,
+        riskTier: patient.risk_tier || 'UNKNOWN',
+        overallRisk: patient.overall_risk || 0,
         metrics: {
-            diabetes: patient.risk_score?.diabetes_risk || 0,
-            hypertension: patient.risk_score?.hypertension_risk || 0,
-            cvd: patient.risk_score?.cvd_risk || 0
+            diabetes: patient.diabetes_risk || 0,
+            hypertension: patient.hypertension_risk || 0,
+            cvd: patient.cvd_risk || 0
         },
         trajectory: patient.trajectory_label || 'Stable',
-        // Parse the top_factors from SHAP
-        xaiContributors: patient.risk_score?.top_factors || [],
-        xaiSummary: patient.risk_score?.xai_summary || "No automated explanation available for this profile.",
-        history: patient.trajectory_history || []
+        xaiContributors: patient.shap_factors || [],
+        xaiSummary: patient.xai_summary || "No automated explanation available for this profile.",
+        history: patient.patient_risk_history || []
     };
 
     const xaiData = {
         labels: currentPatient.xaiContributors.map(c => c.feature),
         datasets: [{
             data: currentPatient.xaiContributors.map(c => c.value),
-            backgroundColor: currentPatient.xaiContributors.map(c => c.value > 0 ? '#ef4444' : '#10b981'), // Red for risk, Green for protective
+            backgroundColor: currentPatient.xaiContributors.map(c => c.value > 0 ? '#ef4444' : '#10b981'),
             borderRadius: 6,
         }]
     };
@@ -110,180 +121,242 @@ const PatientDetailPage = () => {
         }
     };
 
+    const trajectoryData = {
+        labels: currentPatient.history.length > 0 
+           ? currentPatient.history.map(h => new Date(h.assessment_date).toLocaleDateString('en-US', { month: 'short', year: '2d' }))
+           : ['PREVIOUS', 'NOW'],
+        datasets: [
+          {
+            label: 'Risk History',
+            data: currentPatient.history.length > 0 ? currentPatient.history.map(h => h.overall_risk) : [patient.overall_risk - 5, patient.overall_risk],
+            borderColor: '#0f172a',
+            backgroundColor: '#0f172a',
+            borderWidth: 2,
+            pointStyle: 'circle',
+            pointRadius: 6,
+            tension: 0.4
+          }
+        ]
+    };
+
+    // Simple simulation logic
+    const simulatedRisk = Math.max(0, currentPatient.overallRisk - (smokingCessation ? 10 : 0) - (Math.abs(weightReduction) * 1.2) - (Math.max(0, patient.systolic_bp - sbpLimit) * 0.5));
+
     return (
-        <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700 pb-20">
-            {/* Header Section */}
-            <div className="bg-white rounded-[40px] p-10 border border-gray-100 shadow-sm flex justify-between items-center relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                
-                <div className="flex items-center gap-8 relative">
-                    <div className="w-24 h-24 bg-blue-100 rounded-[32px] flex items-center justify-center text-blue-600 shadow-inner">
+        <div className="space-y-8 animate-in fade-in duration-700 font-['Outfit'] pb-20 pr-4">
+            {/* Header Profile Section */}
+            <div className="flex justify-between items-end bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="flex items-center gap-8 z-10">
+                    <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-white shadow-xl flex items-center justify-center bg-blue-100 text-blue-600">
                         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     </div>
                     <div className="space-y-2">
                         <div className="flex items-center gap-4">
-                            <h1 className="text-4xl font-black text-gray-800 tracking-tight">{currentPatient.name}</h1>
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase ${
-                                currentPatient.risk === 'High' ? 'bg-red-50 text-red-500 border border-red-100' : 
-                                currentPatient.risk === 'Medium' ? 'bg-orange-50 text-orange-500 border border-orange-100' :
-                                'bg-emerald-50 text-emerald-500 border border-emerald-100'
+                            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">{currentPatient.name}</h1>
+                            <span className={`px-3 py-1 text-[10px] font-black rounded-lg uppercase tracking-widest border ${
+                                currentPatient.riskTier === 'High' ? 'bg-red-50 text-red-600 border-red-100' : 
+                                currentPatient.riskTier === 'Medium' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                'bg-emerald-50 text-emerald-600 border-emerald-100'
                             }`}>
-                                {currentPatient.risk} Risk Tier
+                                {currentPatient.riskTier} Risk
                             </span>
                         </div>
-                        <div className="flex items-center gap-6 text-gray-400 font-bold text-xs uppercase tracking-[0.2em]">
-                            <span>ID: {currentPatient.id.slice(0,8)}</span>
-                            <span>{currentPatient.gender}, {currentPatient.age}y</span>
-                            <span>{currentPatient.ward}</span>
-                            <span className="text-blue-500 lowercase tracking-normal">ASHA: {currentPatient.asha}</span>
+                        <div className="flex items-center gap-6 text-slate-400 font-bold text-xs uppercase tracking-widest">
+                             <span>Age: {currentPatient.age}y</span>
+                             <span>ID: {currentPatient.id.slice(0, 8)}</span>
+                             <span>Ward: {currentPatient.ward}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex gap-3 z-10">
+                    <button onClick={() => navigate('/patients')} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all shadow-sm">
+                        Back to Directory
+                    </button>
+                    <button className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center gap-2">
+                        Generate Action Plan
+                    </button>
+                </div>
+                <div className="absolute top-0 right-0 w-[400px] h-full bg-gradient-to-l from-blue-50/30 to-transparent pointer-events-none"></div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-8 items-stretch">
+                {/* Left Column: Vitals & SDOH */}
+                <div className="col-span-3 space-y-8 flex flex-col h-full">
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-8 flex-1">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">Clinical Vitals</h3>
+                        <div className="space-y-6">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Blood Pressure</p>
+                                <div className="flex items-center gap-3">
+                                    <span className={`text-2xl font-black tracking-tight ${patient.systolic_bp > 140 ? 'text-red-600' : 'text-slate-800'}`}>
+                                        {patient.systolic_bp}/{patient.diastolic_bp}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-400">mmHg</span>
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">BMI</p>
+                                <div className="flex items-center gap-3">
+                                    <span className={`text-2xl font-black tracking-tight ${patient.bmi > 25 ? 'text-amber-500' : 'text-slate-800'}`}>
+                                        {patient.bmi}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-400">kg/m²</span>
+                                </div>
+                            </div>
+                            <div className="pt-4 space-y-4">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Habits</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {patient.smoking_status === 1 && <span className="px-3 py-1 bg-slate-900 text-white text-[8px] font-black rounded-lg uppercase tracking-widest">Smoker</span>}
+                                    <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[8px] font-black rounded-lg uppercase tracking-widest">
+                                        LD: {new Date(patient.last_visit_date).toLocaleDateString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-8 flex-1">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">Social Determinants</h3>
+                        <div className="space-y-6">
+                            <div className="flex items-start gap-4">
+                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-sm">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-slate-800">Housing</p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{patient.housing_status || 'Stable'}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-4">
+                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-slate-800">Income</p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{patient.income_level || 'Medium'}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex gap-4 relative">
-                    <button 
-                        onClick={() => navigate('/patients')}
-                        className="bg-gray-50 hover:bg-gray-100 text-gray-600 px-8 py-4 rounded-2xl font-black text-xs tracking-widest transition-all active:scale-95 border border-gray-100 shadow-sm"
-                    >
-                        BACK TO DIRECTORY
-                    </button>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xs tracking-widest shadow-xl shadow-blue-100 transition-all active:scale-95">
-                        GENERATE PLAN
-                    </button>
+                {/* Center Column: Risk Score & Contributors */}
+                <div className="col-span-5 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center gap-6">
+                    <div className="w-full flex justify-between items-center px-4">
+                        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Health Risk Profile</h3>
+                        <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                            currentPatient.trajectory.includes('Worsening') ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'
+                        }`}>
+                            {currentPatient.trajectory}
+                        </div>
+                    </div>
+
+                    <div className="relative flex flex-col items-center">
+                        <svg className="w-[280px] h-[140px]" viewBox="0 0 200 100">
+                            <path d="M20,100 A80,80 0 1,1 180,100" fill="none" stroke="#f1f5f9" strokeWidth="16" strokeLinecap="round" />
+                            <path d="M20,100 A80,80 0 1,1 180,100" fill="none" stroke="url(#riskGradient)" strokeWidth="18" strokeLinecap="round" 
+                                    strokeDasharray={251} strokeDashoffset={251 - (251 * currentPatient.overallRisk) / 100} />
+                            <defs>
+                                <linearGradient id="riskGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#2dd4bf" />
+                                    <stop offset="40%" stopColor="#fbbf24" />
+                                    <stop offset="100%" stopColor="#ef4444" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="absolute bottom-4 flex flex-col items-center">
+                            <span className="text-6xl font-black text-slate-900 tracking-tighter">{Math.round(currentPatient.overallRisk)}%</span>
+                            <span className="text-xs font-black text-red-600 uppercase tracking-widest">
+                                {currentPatient.riskTier} Risk
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="w-full space-y-6 pt-6 border-t border-slate-50">
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-sm font-black text-slate-800 tracking-tight">Explainable AI (SHAP) Contributors</h4>
+                        </div>
+                        {currentPatient.xaiContributors.length > 0 ? (
+                            <div className="h-56">
+                                <Bar data={xaiData} options={xaiOptions} />
+                            </div>
+                        ) : (
+                            <div className="py-12 text-center text-slate-400 font-bold">No XAI data generated.</div>
+                        )}
+                        <div className="bg-slate-50 p-4 rounded-2xl text-[10px] font-bold text-slate-500 italic leading-relaxed">
+                            "{currentPatient.xaiSummary}"
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Column: Simulator */}
+                <div className="col-span-4 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col">
+                    <div className="flex items-center gap-3 mb-10">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900 tracking-tight">Intervention Simulator</h3>
+                    </div>
+
+                    <div className="flex-1 space-y-8">
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-500">
+                                <span>Target Systolic BP</span>
+                                <span className="text-blue-600 font-extrabold">{sbpLimit}</span>
+                            </div>
+                            <input type="range" min="110" max="180" step="5" value={sbpLimit} onChange={(e) => setSbpLimit(e.target.value)} className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-slate-500">
+                                <span>Weight Reduction</span>
+                                <span className="text-blue-600 font-extrabold">{weightReduction} kg</span>
+                            </div>
+                            <input type="range" min="-15" max="0" step="1" value={weightReduction} onChange={(e) => setWeightReduction(e.target.value)} className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                        </div>
+
+                        <div className="bg-slate-50 p-6 rounded-[32px] flex items-center justify-between">
+                            <p className="text-xs font-black text-slate-700">Smoking Cessation</p>
+                            <button 
+                                onClick={() => setSmokingCessation(!smokingCessation)}
+                                className={`w-14 h-8 rounded-full p-1 transition-all ${smokingCessation ? 'bg-blue-600' : 'bg-slate-200'}`}
+                            >
+                                <div className={`w-6 h-6 bg-white rounded-full transition-transform ${smokingCessation ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                            </button>
+                        </div>
+
+                        <div className="p-8 border-2 border-slate-50 rounded-[40px] space-y-4">
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest text-center">Projected Score</p>
+                            <div className="flex items-center justify-center gap-6">
+                                <span className="text-2xl font-black text-slate-300 line-through">{Math.round(currentPatient.overallRisk)}%</span>
+                                <div className="w-0.5 h-8 bg-slate-100"></div>
+                                <span className="text-5xl font-black text-blue-600 tracking-tighter">{Math.round(simulatedRisk)}%</span>
+                            </div>
+                            <div className="bg-emerald-50 p-4 rounded-2xl flex items-center gap-3">
+                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wide">
+                                    {Math.round(currentPatient.overallRisk - simulatedRisk)}% reduction potential
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-8">
-                {/* Main Content Area */}
-                <div className="col-span-8 space-y-8">
-                    {/* Risk Score Cards */}
-                    <div className="grid grid-cols-3 gap-6">
-                        {Object.entries(currentPatient.metrics).map(([key, val]) => (
-                            <div key={key} className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col items-center gap-4 transition-transform hover:scale-105 duration-300">
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{key}</span>
-                                <div className="relative flex items-center justify-center">
-                                    <svg className="w-24 h-24 transform -rotate-90">
-                                        <circle cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-gray-50" />
-                                        <circle cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="6" fill="transparent" 
-                                            strokeDasharray={276} strokeDashoffset={276 - (276 * val) / 100}
-                                            className={`${val > 70 ? 'text-red-500' : 'text-blue-500'}`} />
-                                    </svg>
-                                    <span className="absolute text-xl font-black text-gray-800">{val}%</span>
-                                </div>
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${val > 70 ? 'text-red-500' : 'text-blue-500'}`}>
-                                    {val > 70 ? 'High Risk' : 'Elevated'}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* SHAP Explainability Section */}
-                    <div className="bg-white p-10 rounded-[40px] border border-gray-100 shadow-sm space-y-8">
-                        <div className="flex justify-between items-center">
-                            <div className="space-y-1">
-                                <h3 className="text-xl font-black text-gray-800">Risk Contributors (SHAP)</h3>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Model Explainability Output</p>
-                            </div>
-                            <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                                currentPatient.trajectory.includes('Worsening') ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'
-                            }`}>
-                                {currentPatient.trajectory}
-                            </div>
-                        </div>
-
-                        {currentPatient.xaiContributors.length > 0 ? (
-                            <>
-                                <div className="h-64 pt-6">
-                                    <Bar data={xaiData} options={xaiOptions} />
-                                </div>
-                                <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 text-xs font-semibold leading-relaxed text-gray-500 italic">
-                                    "{currentPatient.xaiSummary}"
-                                </div>
-                            </>
-                        ) : (
-                            <div className="py-12 text-center text-gray-400 font-bold">No SHAP contributors generated.</div>
-                        )}
-                    </div>
-
-                    {/* History Table */}
-                    <div className="bg-white p-10 rounded-[40px] border border-gray-100 shadow-sm space-y-8">
-                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Clinical History & Logs</h3>
-                        <div className="space-y-4">
-                            {currentPatient.history.length > 0 ? currentPatient.history.map((log, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-6 bg-gray-50 hover:bg-white transition-all rounded-3xl border border-transparent hover:border-gray-100 hover:shadow-subtle cursor-pointer group">
-                                    <div className="flex items-center gap-6">
-                                        <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
-                                            {new Date(log.assessed_at).toLocaleDateString()}
-                                        </div>
-                                        <div className="px-3 py-1 bg-white rounded-lg text-[10px] font-black text-gray-400 uppercase tracking-widest shadow-sm">Assmnt</div>
-                                        <div className="text-sm font-black text-gray-800">Total Risk: {log.overall_risk}%</div>
-                                    </div>
-                                    <div className={`text-[10px] font-black uppercase tracking-widest ${
-                                        log.risk_tier === 'High' ? 'text-red-500' : 'text-emerald-500'
-                                    }`}>
-                                        {log.risk_tier} Risk
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-xs font-bold text-gray-400 text-center py-4">No historical assessments apart from current.</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Sidebar Support Area */}
-                <div className="col-span-4 space-y-8">
-                    {/* Action Plan Section */}
-                    <div className="bg-gray-900 p-10 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                        
-                        <div className="space-y-6 relative">
-                            <h3 className="text-xs font-black text-blue-400 uppercase tracking-[0.3em]">30-Day AI Action Plan</h3>
-                            
-                            <div className="space-y-6">
-                                {[1, 2, 3].map((week) => (
-                                    <div key={week} className="flex gap-4 group/item">
-                                        <div className="space-y-2 flex flex-col items-center">
-                                            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black group-hover/item:bg-blue-600 transition-colors">W{week}</div>
-                                            <div className="w-0.5 h-full bg-white/5 group-last:hidden"></div>
-                                        </div>
-                                        <div className="space-y-1 pb-6">
-                                            <p className="text-xs font-black text-gray-300">Phase {week}: {week === 1 ? 'Intensive Monitoring' : week === 2 ? 'Lifestyle Shift' : 'Maintenance'}</p>
-                                            <p className="text-[10px] font-medium text-gray-500 leading-relaxed">
-                                                {week === 1 ? 'Bi-weekly BP checks and daily glucose logging.' : 'Introduce 20min brisk walk 4x/week.'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            
-                            <button className="w-full bg-white/10 hover:bg-blue-600 text-[10px] font-black uppercase tracking-widest py-4 rounded-2xl transition-all border border-white/5 mb-4">
-                                REGENERATE PLAN
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* SDOH Panel */}
-                    <div className="bg-white p-10 rounded-[40px] border border-gray-100 shadow-sm space-y-8">
-                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Social Determinants (SDOH)</h3>
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center text-xs font-bold text-gray-600">
-                                <span>Income Level</span>
-                                <span className={patient?.income_level === 'Low' ? 'text-orange-500' : 'text-emerald-500 px-3 py-1 bg-emerald-50 rounded-lg'}>{patient?.income_level || 'Not-Reported'}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs font-bold text-gray-600">
-                                <span>Food Insecurity</span>
-                                <span className={patient?.food_security ? 'text-red-500' : 'text-gray-400'}>{patient?.food_security ? 'High' : 'Normal/Not-Reported'}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs font-bold text-gray-600">
-                                <span>Housing Stability</span>
-                                <span className={patient?.housing_status === 'Homeless' || patient?.housing_status === 'Unstable' ? 'text-red-500' : 'text-emerald-500'}>{patient?.housing_status || 'Stable'}</span>
-                            </div>
-                        </div>
-                        <button className="w-full bg-blue-50 text-blue-600 font-black text-[10px] py-4 rounded-2xl uppercase tracking-widest border border-blue-100 shadow-inner">
-                            Assign ASHA Worker
-                        </button>
-                    </div>
+            {/* Trajectory Plot */}
+            <div className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm space-y-8">
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Risk Trajectory</h3>
+                <div className="h-64">
+                    <Line 
+                        data={trajectoryData} 
+                        options={{ 
+                            maintainAspectRatio: false, 
+                            plugins: { legend: { display: false } }, 
+                            scales: { 
+                                y: { display: false, min: 0, max: 100 }, 
+                                x: { grid: { display: false }, ticks: { font: { weight: 'bold', size: 10 }, color: '#94a3b8' } } 
+                            } 
+                        }} 
+                    />
                 </div>
             </div>
         </div>

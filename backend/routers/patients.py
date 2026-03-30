@@ -13,7 +13,7 @@ Key features:
 - Trajectory label computed from slope of historical assessments
 """
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional
+from typing import Optional, List
 
 from database import get_supabase
 from schemas.patient import (
@@ -118,7 +118,7 @@ def _row_to_patient_with_risk(row: dict) -> PatientWithRisk:
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
-@router.get("")
+@router.get("", response_model=List[PatientListItem])
 async def list_patients(
     page: int = Query(1, ge=1),
     tier: Optional[str] = None,
@@ -175,12 +175,7 @@ async def list_patients(
             asha_worker_id=row.get("asha_worker_id"),
         ))
 
-    return {
-        "patients": patients,
-        "page": page,
-        "page_size": PAGE_SIZE,
-        "total_returned": len(patients),
-    }
+    return patients
 
 
 @router.get("/{patient_id}", response_model=PatientDetailResponse)
