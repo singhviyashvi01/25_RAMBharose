@@ -1,18 +1,17 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
+
+from backend.routers.upload import router as upload_router
+from backend.routers.patients import router as patients_router
+from backend.routers.dashboard import router as dashboard_router
+from backend.routers.action_plans import router as action_plans_router
+from backend.routers.asha import router as asha_router
+from backend.routers.simulator import router as simulator_router
+from backend.routers.camps import router as camps_router
 
 load_dotenv()
-
-# ── Import all routers ───────────────────────────────────────────────────────
-from routers.upload import router as upload_router
-from routers.patients import router as patients_router
-from routers.dashboard import router as dashboard_router
-from routers.action_plans import router as action_plans_router
-from routers.asha import router as asha_router
-from routers.simulator import router as simulator_router
-from routers.camps import router as camps_router
 
 # ── App init ─────────────────────────────────────────────────────────────────
 app = FastAPI(

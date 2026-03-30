@@ -2,8 +2,8 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List
 import pandas as pd
 
-from database import get_supabase
-from schemas.patient import (
+from backend.database import get_supabase
+from backend.schemas.patient import (
     PatientDetailResponse,
     PatientWithRisk,
     PatientRiskScore,

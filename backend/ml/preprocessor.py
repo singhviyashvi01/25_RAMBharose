@@ -5,7 +5,7 @@ before passing to the ML models.
 import pandas as pd
 import numpy as np
 from typing import Tuple, List
-from utils.feature_columns import ALL_FEATURES, REQUIRED_CSV_COLUMNS
+from backend.utils.feature_columns import ALL_FEATURES, REQUIRED_CSV_COLUMNS
 
 
 def validate_dataframe(df: pd.DataFrame) -> Tuple[bool, List[str]]:

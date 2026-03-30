@@ -20,11 +20,11 @@ Note: Does NOT save simulation to DB — it's a read-only exploration tool.
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 
-from database import get_supabase
-from ml.preprocessor import preprocess
-from ml.predictor import predict_risk_scores
-from schemas.simulator import SimulatorRequest, SimulatorResponse, RiskScoreSnapshot
-from utils.feature_columns import get_feature_display_value
+from backend.database import get_supabase
+from backend.ml.preprocessor import preprocess
+from backend.ml.predictor import predict_risk_scores
+from backend.schemas.simulator import SimulatorRequest, SimulatorResponse, RiskScoreSnapshot
+from backend.utils.feature_columns import get_feature_display_value
 
 router = APIRouter(prefix="/simulator", tags=["Risk Simulator"])
 

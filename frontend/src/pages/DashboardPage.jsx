@@ -45,7 +45,8 @@ const DashboardPage = () => {
                     getPatients({ tier: 'High', page: 1 })
                 ]);
                 setDashboardData(dash);
-                setPriorityPatients((patientsData.patients || []).slice(0, 5));
+                const pList = Array.isArray(patientsData) ? patientsData : (patientsData.patients || []);
+                setPriorityPatients(pList.slice(0, 5));
             } catch (err) {
                 console.error("Dashboard load failed:", err);
             } finally {

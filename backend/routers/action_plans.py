@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query, HTTPException
-from schemas.action_plan import ActionPlanResponse
-from database import get_supabase
-from services.langchain_service import generate_action_plan
-from utils.risk_calculator import score_to_tier, get_primary_condition
+from backend.schemas.action_plan import ActionPlanResponse
+from backend.database import get_supabase
+from backend.services.langchain_service import generate_action_plan
+from backend.utils.risk_calculator import score_to_tier, get_primary_condition
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/action-plans", tags=["Action Plans"])

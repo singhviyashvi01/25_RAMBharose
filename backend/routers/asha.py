@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
-from schemas.asha import AutoAssignResponse, TaskStatusUpdate, ManualAssignRequest, ASHATask, ASHAWorker
-from database import get_supabase
-from services.asha_service import auto_assign_asha_tasks
+from backend.schemas.asha import AutoAssignResponse, TaskStatusUpdate, ManualAssignRequest, ASHATask, ASHAWorker
+from backend.database import get_supabase
+from backend.services.asha_service import auto_assign_asha_tasks
 
 router = APIRouter(prefix="/asha", tags=["ASHA Tasks"])
 

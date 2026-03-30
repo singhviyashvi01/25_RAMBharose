@@ -20,8 +20,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from typing import Dict
-from ml.preprocessor import get_feature_matrix
-from utils.feature_columns import ALL_FEATURES
+from backend.ml.preprocessor import get_feature_matrix
+from backend.utils.feature_columns import ALL_FEATURES
 
 MODEL_DIR = os.getenv("MODEL_DIR", "./ml/saved_models")
 os.makedirs(MODEL_DIR, exist_ok=True)

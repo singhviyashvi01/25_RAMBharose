@@ -2,7 +2,7 @@ import os
 import requests
 from datetime import date, timedelta
 from typing import List, Dict
-from database import get_supabase
+from backend.database import get_supabase
 
 # Load from environment
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
@@ -87,25 +87,25 @@ async def auto_assign_asha_tasks() -> Dict:
                 db.table("asha_workers").update({"active_tasks": selected_worker["active_tasks"]})\
                     .eq("worker_id", selected_worker["worker_id"]).execute()
                 
+                # Trigger n8n webhook notification
+                _fire_n8n_webhook({
+                    "event": "asha_task_assigned",
+                    "task_id": task_res.data[0]["task_id"],
+                    "patient_id": patient["patient_id"],
+                    "patient_name": patient["name"],
+                    "asha_name": selected_worker["name"],
+                    "asha_phone": selected_worker.get("phone"),
+                    "ward": ward,
+                    "due_date": task_data["due_date"]
+                })
+                
                 assignments.append({
                     "patient_id": patient["patient_id"],
                     "patient_name": patient["name"],
                     "asha_worker_id": selected_worker["worker_id"],
                     "asha_name": selected_worker["name"]
                 })
-                
-        # Trigger n8n webhook notification
-        _fire_n8n_webhook({
-            "event": "asha_task_assigned",
-            "task_id": task_res.data[0]["task_id"],
-            "patient_id": patient["patient_id"],
-            "patient_name": patient["name"],
-            "asha_name": selected_worker["name"],
-            "asha_phone": selected_worker.get("phone"),
-            "ward": ward,
-            "due_date": task_data["due_date"]
-        })
-
+        
         return {
             "total_assigned": len(assignments),
             "assignments": assignments,

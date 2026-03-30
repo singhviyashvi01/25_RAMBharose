@@ -8,8 +8,8 @@ import joblib
 import numpy as np
 import pandas as pd
 from typing import Dict, List
-from ml.preprocessor import get_feature_matrix
-from ml.trainer import CONDITIONS, MODEL_DIR, models_exist, train_models
+from backend.ml.preprocessor import get_feature_matrix
+from backend.ml.trainer import CONDITIONS, MODEL_DIR, models_exist, train_models
 
 _model_cache: Dict[str, object] = {}
 

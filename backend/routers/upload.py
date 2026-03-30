@@ -6,12 +6,12 @@ import pandas as pd
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from typing import List, Optional
 
-from database import get_supabase
-from ml.preprocessor import preprocess, validate_dataframe
-from ml.predictor import predict_risk_scores
-from ml.explainer import get_shap_factors, build_xai_summary, get_top_factor_label
-from utils.risk_calculator import get_primary_condition, score_to_tier
-from schemas.upload import UploadResponse
+from backend.database import get_supabase
+from backend.ml.preprocessor import preprocess, validate_dataframe
+from backend.ml.predictor import predict_risk_scores
+from backend.ml.explainer import get_shap_factors, build_xai_summary, get_top_factor_label
+from backend.utils.risk_calculator import get_primary_condition, score_to_tier
+from backend.schemas.upload import UploadResponse
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 

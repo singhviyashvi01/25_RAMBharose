@@ -25,11 +25,11 @@ class CampSchedule(BaseModel):
     ward: str
     start_date: date
     end_date: date
-    target_patient_count: int
+    target_count: int
     status: str = "Planned"           # "Planned", "Active", "Completed"
     venue: Optional[str] = None
     staff_required: Optional[dict] = None   # { "doctors": 2, "nurses": 3, "ashas": 5 }
-    screenings: List[str] = []
+    screenings: Optional[List[str]] = None
     estimated_cost: Optional[float] = None  # in INR
     actual_screened: Optional[int] = None   # filled after camp completion
     high_risk_detected: Optional[int] = None

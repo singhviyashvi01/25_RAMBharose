@@ -2,8 +2,8 @@ import os
 import math
 import pandas as pd
 from typing import List
-from database import get_supabase
-from schemas.camps import WardCampPlan, CampPlanResponse
+from backend.database import get_supabase
+from backend.schemas.camps import WardCampPlan, CampPlanResponse
 
 PATIENTS_PER_CAMP = int(os.getenv("CAMP_CAPACITY", 15))
 

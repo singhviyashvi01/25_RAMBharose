@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
-from schemas.camps import CampPlanResponse, CampsListResponse, CreateCampRequest, CampSchedule
-from database import get_supabase
-from services.camps_service import generate_camp_plan
+from backend.schemas.camps import CampPlanResponse, CampsListResponse, CreateCampRequest, CampSchedule
+from backend.database import get_supabase
+from backend.services.camps_service import generate_camp_plan
 
 router = APIRouter(prefix="/camps", tags=["Screening Camps"])
 
@@ -23,10 +23,13 @@ async def list_camps():
     """Returns all upcoming and past screening camps."""
     db = get_supabase()
     
+    from datetime import datetime
+    now_str = datetime.utcnow().isoformat()
+    
     # 1. Fetch upcoming
-    upcoming_res = db.table("screening_camps").select("*").gte("end_date", "now()").order("start_date").execute()
+    upcoming_res = db.table("screening_camps").select("*").gte("end_date", now_str).order("start_date").execute()
     # 2. Fetch past
-    past_res = db.table("screening_camps").select("*").lt("end_date", "now()").order("end_date", desc=True).execute()
+    past_res = db.table("screening_camps").select("*").lt("end_date", now_str).order("end_date", desc=True).execute()
     
     return {
         "upcoming": upcoming_res.data,
