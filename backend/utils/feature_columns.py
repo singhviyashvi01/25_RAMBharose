@@ -24,6 +24,7 @@ CATEGORICAL_FEATURES = [
     "family_history_cvd",
     "food_security",
     "income_level_encoded",  # 0=Low, 1=Medium, 2=High
+    "housing_status_encoded", # 0=Homeless, 1=Unstable, 2=Stable
 ]
 
 ALL_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
@@ -40,7 +41,7 @@ OPTIONAL_CSV_COLUMNS = [
     "blood_glucose_fasting", "hba1c", "cholesterol_total",
     "smoking_status", "physical_activity",
     "family_history_diabetes", "family_history_hypertension", "family_history_cvd",
-    "income_level", "food_security", "ward", "last_visit_date", "asha_worker_id",
+    "income_level", "food_security", "housing_status", "ward", "last_visit_date", "asha_worker_id",
 ]
 
 # Human-readable labels for SHAP feature explanations
@@ -60,6 +61,7 @@ FEATURE_DISPLAY_NAMES = {
     "family_history_cvd": "Family Hx: CVD",
     "food_security": "Food Security",
     "income_level_encoded": "Income Level",
+    "housing_status_encoded": "Housing",
 }
 
 # Clinical thresholds for readable SHAP labels
@@ -91,6 +93,9 @@ def get_feature_display_value(feature: str, value: float) -> str:
         return "Family History: Hypertension" if value else "No Family Hx: Hypertension"
     elif feature == "family_history_cvd":
         return "Family History: CVD" if value else "No Family Hx: CVD"
+    elif feature == "housing_status_encoded":
+        labels = {0: "Homeless", 1: "Unstable Housing", 2: "Stable Housing"}
+        return labels.get(int(value), f"Housing {value}")
     else:
         name = FEATURE_DISPLAY_NAMES.get(feature, feature.replace("_", " ").title())
         return f"{name}: {value}"

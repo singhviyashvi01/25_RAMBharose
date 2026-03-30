@@ -44,6 +44,15 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df["income_level_encoded"] = 1
 
+    # ── Housing status encoding (SDOH) ──────────────────────────
+    if "housing_status" in df.columns:
+        housing_map = {"homeless": 0, "unstable": 1, "stable": 2}
+        df["housing_status_encoded"] = (
+            df["housing_status"].str.lower().map(housing_map).fillna(2)
+        )
+    else:
+        df["housing_status_encoded"] = 2  # default: Stable
+
     # ── Fill missing numeric values with clinical safe defaults ─
     defaults = {
         "age": 40,
@@ -61,6 +70,7 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         "food_security": 1,
         "income_level_encoded": 1,
         "gender_encoded": 0,
+        "housing_status_encoded": 2,
     }
     for col, default_val in defaults.items():
         if col not in df.columns:

@@ -20,6 +20,16 @@ class PatientRiskScore(BaseModel):
     xai_summary: str  # e.g., "High risk due to BMI 31 + Smoking"
 
 
+class RiskHistoryPoint(BaseModel):
+    """Single temporal data-point for the risk trajectory chart."""
+    assessment_date: str  # ISO date string
+    diabetes_risk: float
+    hypertension_risk: float
+    cvd_risk: float
+    overall_risk: float
+    risk_tier: str
+
+
 class PatientBase(BaseModel):
     patient_id: str
     name: str
@@ -40,6 +50,7 @@ class PatientBase(BaseModel):
     family_history_cvd: Optional[int] = 0
     income_level: Optional[str] = "Medium"
     food_security: Optional[int] = 1
+    housing_status: Optional[str] = "Stable"
     ward: Optional[str] = None
     last_visit_date: Optional[date] = None
     asha_worker_id: Optional[str] = None
@@ -67,4 +78,5 @@ class PatientListItem(BaseModel):
 class PatientDetailResponse(BaseModel):
     patient: PatientWithRisk
     action_plan: Optional[str] = None
-    trajectory: Optional[str] = None  # "Rapidly worsening", "Stable", "Improving"
+    trajectory_label: Optional[str] = None  # "Rapidly worsening", "Stable", "Improving"
+    trajectory_history: List[RiskHistoryPoint] = []  # Ordered list of historical assessments

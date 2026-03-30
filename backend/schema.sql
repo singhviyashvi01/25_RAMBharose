@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS patients (
     -- Social Determinants Of Health (SDOH)
     income_level        TEXT DEFAULT 'Medium', -- 'Low','Medium','High'
     food_security       INT DEFAULT 1,         -- 0=Insecure, 1=Secure
+    housing_status      TEXT DEFAULT 'Stable', -- 'Stable','Unstable','Homeless'
     ward                TEXT,
     last_visit_date     DATE,
 
@@ -170,3 +171,22 @@ CREATE INDEX IF NOT EXISTS idx_camps_start_date ON screening_camps(start_date);
 -- ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE asha_tasks ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE screening_camps ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- TABLE: patient_risk_history
+-- Temporal history of patient risk scores across multi-visits
+-- ============================================================
+CREATE TABLE IF NOT EXISTS patient_risk_history (
+    history_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    patient_id      TEXT REFERENCES patients(patient_id) ON DELETE CASCADE,
+    assessment_date DATE NOT NULL,
+    diabetes_risk   NUMERIC(5,2),
+    hypertension_risk NUMERIC(5,2),
+    cvd_risk        NUMERIC(5,2),
+    overall_risk    NUMERIC(5,2),
+    risk_tier       TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_patient ON patient_risk_history(patient_id);
+CREATE INDEX IF NOT EXISTS idx_history_date ON patient_risk_history(assessment_date);
