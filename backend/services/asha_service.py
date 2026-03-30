@@ -1,60 +1,138 @@
-"""
-SERVICE: asha_service.py
-=========================
-Business logic for ASHA task auto-assignment.
-
-Auto-Assignment Algorithm:
-1. Query all high-risk patients (overall_risk >= 70) with no assigned ASHA
-2. Query all ASHA workers where active_tasks < max_capacity
-3. For each unassigned patient:
-   a. First try to find an ASHA in the same WARD (proximity)
-   b. If none available in same ward, expand to adjacent wards
-   c. Assign the ASHA with fewest current active tasks (load balance)
-4. Create asha_tasks records in Supabase
-5. Increment asha_workers.active_tasks count
-6. Trigger n8n webhook (optional — if N8N_WEBHOOK_URL is set)
-
-Task Creation Rules:
-- task_type: "Home Visit" for High risk, "Follow-up Call" for Medium
-- priority: mirrors patient risk_tier
-- due_date: today + 2 days (High), today + 5 days (Medium)
-
-n8n Webhook:
-- Fires POST to N8N_WEBHOOK_URL/asha-assigned
-- Payload: { task_id, patient_name, patient_ward, asha_name, asha_phone, due_date }
-- n8n then routes to SMS / WhatsApp notification
-"""
 import os
+import requests
 from datetime import date, timedelta
 from typing import List, Dict
 from database import get_supabase
 
+# Load from environment
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 
 
 async def auto_assign_asha_tasks() -> Dict:
     """
-    Main auto-assignment function.
-    Returns summary dict: { total_assigned, assignments, unassigned }
+    Main auto-assignment logic:
+    1. Finds high-risk patients without an ASHA.
+    2. Matches them to available ASHA workers in their ward.
+    3. Load balances tasks and updates database.
     """
-    # TODO: implement full logic
-    # Steps:
-    # 1. db.table("patients").select(...).eq("risk_tier", "High").is_("asha_worker_id", "null")
-    # 2. db.table("asha_workers").select(...).lt("active_tasks", "max_capacity")
-    # 3. Match by ward, load balance, create task records
-    # 4. Fire n8n webhook if configured
-    return {"total_assigned": 0, "assignments": [], "unassigned": 0, "message": "Not implemented yet"}
+    db = get_supabase()
+    
+    try:
+        # 1. Fetch unassigned high-risk patients
+        patients_res = db.table("patients").select("patient_id, name, ward, risk_tier, overall_risk")\
+            .eq("risk_tier", "High").is_("asha_worker_id", "null").execute()
+        unassigned_patients = patients_res.data
+        
+        if not unassigned_patients:
+            return {
+                "total_assigned": 0, 
+                "assignments": [], 
+                "unassigned": 0, 
+                "message": "No unassigned high-risk patients found."
+            }
+
+        # 2. Fetch active ASHA workers
+        workers_res = db.table("asha_workers").select("*").eq("is_active", True).execute()
+        workers = workers_res.data
+        
+        if not workers:
+             return {
+                 "total_assigned": 0, 
+                 "assignments": [], 
+                 "unassigned": len(unassigned_patients), 
+                 "message": "No active ASHA workers found."
+             }
+
+        assignments = []
+        unassigned_count = 0
+        
+        # 3. Assignment Loop
+        for patient in unassigned_patients:
+            ward = patient["ward"]
+            
+            # Find workers in the same ward who are below capacity
+            available_in_ward = [w for w in workers if w["ward"] == ward and w["active_tasks"] < w["max_capacity"]]
+            
+            if not available_in_ward:
+                unassigned_count += 1
+                continue
+            
+            # Select the one with the fewest active tasks (load balancing)
+            selected_worker = min(available_in_ward, key=lambda x: x["active_tasks"])
+            
+            # 4. Perform DB updates
+            task_data = {
+                "patient_id": patient["patient_id"],
+                "asha_worker_id": selected_worker["worker_id"],
+                "task_type": "Home Visit",
+                "status": "Pending",
+                "priority": "High",
+                "due_date": (date.today() + timedelta(days=2)).isoformat()
+            }
+            
+            # Create task record
+            task_res = db.table("asha_tasks").insert(task_data).execute()
+            
+            if task_res.data:
+                # Update patient record with assigned worker
+                db.table("patients").update({"asha_worker_id": selected_worker["worker_id"]})\
+                    .eq("patient_id", patient["patient_id"]).execute()
+                
+                # Increment worker's active task count
+                selected_worker["active_tasks"] += 1
+                db.table("asha_workers").update({"active_tasks": selected_worker["active_tasks"]})\
+                    .eq("worker_id", selected_worker["worker_id"]).execute()
+                
+                assignments.append({
+                    "patient_id": patient["patient_id"],
+                    "patient_name": patient["name"],
+                    "asha_worker_id": selected_worker["worker_id"],
+                    "asha_name": selected_worker["name"]
+                })
+                
+        # Trigger n8n webhook notification
+        _fire_n8n_webhook({
+            "event": "asha_task_assigned",
+            "task_id": task_res.data[0]["task_id"],
+            "patient_id": patient["patient_id"],
+            "patient_name": patient["name"],
+            "asha_name": selected_worker["name"],
+            "asha_phone": selected_worker.get("phone"),
+            "ward": ward,
+            "due_date": task_data["due_date"]
+        })
+
+        return {
+            "total_assigned": len(assignments),
+            "assignments": assignments,
+            "unassigned": unassigned_count,
+            "message": f"Successfully assigned {len(assignments)} tasks. {unassigned_count} patients remain unassigned."
+        }
+
+    except Exception as e:
+        print(f"ASHA auto-assign error: {e}")
+        return {
+            "total_assigned": 0, 
+            "assignments": [], 
+            "unassigned": 0, 
+            "message": f"Server error: {str(e)}"
+        }
 
 
 def _fire_n8n_webhook(task_payload: dict):
-    """Fires n8n webhook for ASHA assignment notification (non-blocking)."""
+    """Fires n8n webhook for ASHA assignment notification."""
     if not N8N_WEBHOOK_URL:
         return
     try:
-        import requests
-        requests.post(f"{N8N_WEBHOOK_URL}/asha-assigned", json=task_payload, timeout=3)
+        # If the URL already contains a UUID/webhook-test, we post directly.
+        # Otherwise we append the path.
+        url = N8N_WEBHOOK_URL
+        if "webhook" not in url.lower():
+             url = f"{url.rstrip('/')}/asha-assigned"
+             
+        requests.post(url, json=task_payload, timeout=5)
     except Exception as e:
-        print(f"n8n webhook failed (non-critical): {e}")
+        print(f"n8n Webhook Error: {e}")
 
 
 def compute_due_date(risk_tier: str) -> date:
