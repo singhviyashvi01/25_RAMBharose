@@ -57,8 +57,13 @@ async def upload_dataset(file: UploadFile = File(...)):
             
         df = _normalize_columns(df)
         total_records = len(df)
+        print(f"--- UPLOAD DEBUG ---")
+        print(f"File: {filename}")
+        print(f"Records found: {total_records}")
+        print(f"Columns: {df.columns.tolist()}")
         
         if total_records == 0:
+            print("ERROR: Uploaded file contains no data rows.")
             raise HTTPException(status_code=400, detail="Uploaded file contains no data rows.")
 
         # 2. Validate required columns
@@ -230,6 +235,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         )
 
     except Exception as e:
+        print(f"CRITICAL UPLOAD ERROR: {e}")
         traceback.print_exc()
         if isinstance(e, HTTPException):
             raise e

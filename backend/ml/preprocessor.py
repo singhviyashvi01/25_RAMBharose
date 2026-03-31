@@ -31,7 +31,10 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
 
     # ── Gender encoding ─────────────────────────────────────────
     if "gender" in df.columns:
-        df["gender_encoded"] = df["gender"].str.upper().map({"M": 1, "F": 0}).fillna(0)
+        # Handle M/F, Male/Female, etc.
+        df["gender_encoded"] = df["gender"].astype(str).str.upper().str.strip()
+        gender_map = {"M": 1, "MALE": 1, "F": 0, "FEMALE": 0}
+        df["gender_encoded"] = df["gender_encoded"].map(gender_map).fillna(0)
     else:
         df["gender_encoded"] = 0
 

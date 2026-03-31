@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321' // Mock URL to prevent crash
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'mock-key'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!import.meta.env.VITE_SUPABASE_URL) {
-  console.warn('Supabase env vars not set. Mocking client to prevent crash.')
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) are missing in frontend/.env')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
