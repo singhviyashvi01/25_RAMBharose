@@ -50,11 +50,15 @@ def get_shap_factors(
     explainer = shap.TreeExplainer(rf_model)
     shap_values = explainer.shap_values(X)
 
-    # For binary classification, shap_values is a list [class0, class1]
+    # For binary classification, shap_values can be a list [class0, class1] or a 3D ndarray (samples, features, classes)
     if isinstance(shap_values, list):
         shap_vals = shap_values[1][0]  # positive class (at-risk)
+    elif len(shap_values.shape) == 3:
+        shap_vals = shap_values[0, :, 1] # positive class for 1st sample
+    elif len(shap_values.shape) == 2:
+        shap_vals = shap_values[0] # assume binary single-output
     else:
-        shap_vals = shap_values[0]
+        shap_vals = shap_values
 
     factors = []
     for i, feature in enumerate(ALL_FEATURES):
