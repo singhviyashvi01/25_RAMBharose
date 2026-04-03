@@ -193,3 +193,24 @@ CREATE TABLE IF NOT EXISTS patient_risk_history (
 
 CREATE INDEX IF NOT EXISTS idx_history_patient ON patient_risk_history(patient_id);
 CREATE INDEX IF NOT EXISTS idx_history_date ON patient_risk_history(assessment_date);
+
+-- ============================================================
+-- TABLE: appointments
+-- Doctor's shared calendar and scheduling
+-- ============================================================
+CREATE TABLE IF NOT EXISTS appointments (
+    appointment_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    doctor_id           UUID NOT NULL,              -- Supabase user ID
+    patient_id          TEXT REFERENCES patients(patient_id) ON DELETE CASCADE,
+    patient_name        TEXT NOT NULL,
+    appointment_date    TIMESTAMPTZ NOT NULL,
+    type                TEXT DEFAULT 'Consultation', -- 'Consultation', 'Follow-up', 'Emergency'
+    status              TEXT DEFAULT 'Scheduled',    -- 'Scheduled', 'Completed', 'Cancelled'
+    notes               TEXT,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_doctor ON appointments(doctor_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointments(patient_id);

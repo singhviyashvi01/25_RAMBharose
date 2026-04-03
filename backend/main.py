@@ -16,6 +16,7 @@ from backend.routers.asha import router as asha_router
 from backend.routers.simulator import router as simulator_router
 from backend.routers.camps import router as camps_router
 from backend.routers.auth import router as auth_router
+from backend.routers.appointments import router as appointments_router
 
 
 # ── App init ─────────────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ app.include_router(asha_router,         prefix="/api")
 app.include_router(simulator_router,    prefix="/api")
 app.include_router(camps_router,        prefix="/api")
 app.include_router(auth_router,         prefix="/api")
+app.include_router(appointments_router, prefix="/api")
 
 # ── Health check ─────────────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
